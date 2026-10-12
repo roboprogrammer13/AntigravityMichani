@@ -78,11 +78,15 @@
           <div class="info-pill" id="pillStudentCount">Studentů: 0</div>
           <div class="info-pill" id="pillPairBreakdown">Rozpis: 0 dvojic</div>
           <div class="info-pill highlight" id="pillOddNotice" style="display: none;">⚠️ Lichý počet – vznikne 1 trojice</div>
-          <button type="button" class="btn-text-toggle" id="btnToggleStudentList">Zobrazit seznam studentů (0)</button>
+          <button type="button" class="btn-text-toggle" id="btnToggleStudentList">Správa docházky / chybějící (0)</button>
         </div>
 
-        <!-- Seznam studentů ve vybrané skupině (sbalitelný) -->
+        <!-- Seznam studentů ve vybrané skupině (docházka / označení chybějících) -->
         <div class="student-roster" id="studentRoster" style="display: none;">
+          <div class="roster-toolbar">
+            <span class="roster-hint">💡 Klikněte na studenta nebo tlačítko pro označení absence (kdo chybí):</span>
+            <button type="button" class="btn-text-small" id="btnResetAbsences" style="display: none;">Vrátit všechny chybějící</button>
+          </div>
           <ul id="rosterList" class="roster-list"></ul>
         </div>
       </section>
@@ -108,6 +112,19 @@
             <button type="button" class="btn btn-success" id="btnDownloadTxt">
               💾 Uložit do TXT
             </button>
+          </div>
+        </div>
+
+        <!-- Nápověda a stav pro výměnu studentů -->
+        <div class="swap-hint-banner" id="swapHintBanner">
+          <div class="swap-hint-icon">🔄</div>
+          <div class="swap-hint-content">
+            <div class="swap-hint-title">Výměna studentů kliknutím:</div>
+            <div class="swap-hint-desc">Klikněte na jednoho studenta a poté na druhého pro jejich okamžité prohození.</div>
+          </div>
+          <div class="swap-status-pill" id="swapStatusPill" style="display: none;">
+            <span id="swapStatusText">Vybrán: ...</span>
+            <button type="button" class="btn-cancel-swap" id="btnCancelSwap" title="Zrušit výběr">✕</button>
           </div>
         </div>
 

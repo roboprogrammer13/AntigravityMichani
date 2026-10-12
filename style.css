@@ -340,30 +340,112 @@ body {
   text-decoration: underline;
 }
 
-/* Student Roster */
+/* Student Roster (Docházka / Chybějící) */
 .student-roster {
   margin-top: 14px;
-  max-height: 220px;
+  max-height: 280px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 12px;
+  padding: 14px;
   background: white;
+}
+
+.roster-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.roster-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.btn-text-small {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-text-small:hover {
+  color: var(--primary-hover);
 }
 
 .roster-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 6px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 12px;
   list-style-type: none;
   font-size: 0.9rem;
 }
 
-.roster-list li {
-  padding: 4px 8px;
+.roster-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
   background: #f8fafc;
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   color: #334155;
+  transition: all 0.15s ease;
+}
+
+.roster-item:hover {
+  border-color: #cbd5e1;
+}
+
+.roster-item.is-absent {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.roster-item.is-absent .roster-name {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.btn-absence-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-absence-toggle:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.roster-item.is-absent .btn-absence-toggle {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.roster-item.is-absent .btn-absence-toggle:hover {
+  background: #bbf7d0;
+  border-color: #4ade80;
 }
 
 /* Step 3: Results */
@@ -373,7 +455,7 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-color);
 }
@@ -388,6 +470,73 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* Swap Hint Banner */
+.swap-hint-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 22px;
+}
+
+.swap-hint-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.swap-hint-content {
+  flex: 1 1 240px;
+}
+
+.swap-hint-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #166534;
+}
+
+.swap-hint-desc {
+  font-size: 0.85rem;
+  color: #15803d;
+}
+
+.swap-status-pill {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow-sm);
+  animation: pulse 2s infinite;
+}
+
+.btn-cancel-swap {
+  background: #dbeafe;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #1e40af;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-cancel-swap:hover {
+  background: #bfdbfe;
 }
 
 /* Pairs Grid */
@@ -443,21 +592,67 @@ body {
   color: #b45309;
 }
 
+/* Student Items in Pair Cards - Interactive for Swap */
 .student-list-item {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
   background: #f8fafc;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   margin-bottom: 6px;
   font-weight: 500;
   font-size: 0.95rem;
   color: #1e293b;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.student-list-item:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  transform: translateX(2px);
 }
 
 .student-list-item:last-child {
   margin-bottom: 0;
+}
+
+.student-list-item.swap-selected {
+  background: #fef3c7 !important;
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.3) !important;
+  transform: scale(1.02);
+}
+
+.student-list-item.swap-just-swapped {
+  animation: swapHighlight 1.5s ease-out;
+}
+
+@keyframes swapHighlight {
+  0% {
+    background-color: #bbf7d0;
+    border-color: #22c55e;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.4);
+  }
+  100% {
+    background-color: #f8fafc;
+    border-color: transparent;
+    box-shadow: none;
+  }
+}
+
+.swap-student-badge {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 2px 6px;
+  border-radius: 10px;
 }
 
 .student-avatar {

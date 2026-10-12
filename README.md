@@ -14,9 +14,18 @@ Aplikace běží kompletně v prohlížeči (frontend bez nutnosti backendového
   2. sloupec: *Příjmení*
   3. sloupec: *Číslo skupiny* (např. `42` nebo `B261-11VND studijní skupina 42`)
 - **Inteligentní roletka**: Automaticky nabídne všechny dostupné skupiny s počtem studentů v závorce.
+- **Správa docházky (chybějící studenti)**:
+  - V seznamu skupiny lze kliknutím na studenta nebo tlačítko `❌ Chybí` označit nepřítomné.
+  - Aplikace automaticky přepočítá počet dvojic/trojic podle skutečně přítomných studentů.
+  - Kdykoliv lze chybějící studenty vrátit jednotlivě nebo hromadně tlačítkem `Vrátit všechny chybějící`.
 - **Náhodné míchání (Fisher-Yates)**:
+  - Zamíchá pouze přítomné studenty.
   - Při sudém počtu: čistě dvojice.
   - Při lichém počtu: dvojice + přesně **1 trojice** (nikdo nezůstane sám).
+- **Ruční výměna studentů kliknutím**:
+  - Po namíchání stačí kliknout na jednoho studenta (zvýrazní se žlutě) a poté na druhého – studenti se okamžitě prohodí.
+  - Funguje mezi dvojicemi i mezi dvojicí a trojicí.
+  - TXT výstup i náhled se okamžitě automaticky aktualizují.
 - **Export do TXT**:
   - Tlačítko **Uložit do TXT** stáhne soubor `skupina_XX_dvojice.txt`.
   - Formát: **jedna dvojice/trojice na jeden řádek**.

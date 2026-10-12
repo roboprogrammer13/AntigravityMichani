@@ -7,6 +7,13 @@
   let selectedGroup = null;
   let currentMixedGroups = []; // pole polí studentů, např. [[s1, s2], [s3, s4, s5]]
   let currentSourceName = '';
+  
+  // Množina klíčů studentů označených jako chybějící (absence)
+  const absentStudentKeys = new Set();
+
+  // Stav pro ruční výměnu studentů kliknutím
+  let swapSelection = null; // { groupIdx, studentIdx, studentName }
+  let justSwappedIndices = []; // [{ g, s }, { g, s }] pro animaci po prohození
 
   // DOM prvky
   const statusDot = document.getElementById('statusDot');
@@ -24,6 +31,7 @@
   const btnToggleStudentList = document.getElementById('btnToggleStudentList');
   const studentRoster = document.getElementById('studentRoster');
   const rosterList = document.getElementById('rosterList');
+  const btnResetAbsences = document.getElementById('btnResetAbsences');
 
   const resultsSection = document.getElementById('resultsSection');
   const resultsSubtitle = document.getElementById('resultsSubtitle');
@@ -34,6 +42,10 @@
   const previewLineCount = document.getElementById('previewLineCount');
   const txtPreviewBox = document.getElementById('txtPreviewBox');
   const toast = document.getElementById('toast');
+
+  const swapStatusPill = document.getElementById('swapStatusPill');
+  const swapStatusText = document.getElementById('swapStatusText');
+  const btnCancelSwap = document.getElementById('btnCancelSwap');
 
   // Inicializace
   document.addEventListener('DOMContentLoaded', () => {
@@ -85,19 +97,30 @@
     btnToggleStudentList.addEventListener('click', () => {
       const isHidden = studentRoster.style.display === 'none';
       studentRoster.style.display = isHidden ? 'block' : 'none';
-      btnToggleStudentList.textContent = isHidden ? 'Skrýt seznam studentů' : `Zobrazit seznam studentů (${getRosterCount()})`;
+      updateRosterToggleLabel();
     });
+
+    if (btnResetAbsences) {
+      btnResetAbsences.addEventListener('click', resetAllAbsences);
+    }
+
+    if (btnCancelSwap) {
+      btnCancelSwap.addEventListener('click', () => {
+        clearSwapSelection();
+        renderResults(currentMixedGroups, getPresentStudentsCount());
+        showToast('Výběr studenta pro výměnu byl zrušen.');
+      });
+    }
 
     btnCopyText.addEventListener('click', copyResultsToClipboard);
     btnDownloadTxt.addEventListener('click', downloadResultsAsTxt);
   }
 
-  // Načtení výchozích dat (nejprve fetch souboru VND26_studenti.xlsx, případně fallback na window.DEFAULT_STUDENTS)
+  // Načtení výchozích dat
   async function loadDefaultData() {
     updateStatus('loading', 'Načítám výchozí soubor VND26_studenti.xlsx...');
     
     try {
-      // Zkusíme stáhnout soubor přes fetch (standardní cesta pro GitHub Pages i lokální web server)
       const response = await fetch('./VND26_studenti.xlsx', { cache: 'no-cache' });
       if (response.ok) {
         const arrayBuffer = await response.arrayBuffer();
@@ -151,14 +174,12 @@
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
     
-    // Převedeme na pole polí (řádků)
     const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
     if (!rows || rows.length < 2) {
       throw new Error('Soubor neobsahuje žádné datové řádky.');
     }
 
-    // Zjištění, zda 1. řádek obsahuje hlavičku
     let startIndex = 0;
     const firstRowStr = (rows[0] || []).join(' ').toLowerCase();
     if (firstRowStr.includes('jmén') || firstRowStr.includes('name') || firstRowStr.includes('skupin')) {
@@ -175,10 +196,8 @@
       const col2 = String(row[1] || '').trim();
       const col3 = row[2] !== undefined ? String(row[2]).trim() : '';
 
-      if (!col1 && !col2) continue; // prázdný řádek
+      if (!col1 && !col2) continue;
 
-      // Zpracování skupiny:
-      // Může být přímo číslo "42" nebo text "B261-11VND studijní skupina 42"
       let groupVal = col3;
       const numMatch = col3.match(/(\d+)$/);
       if (numMatch) {
@@ -203,8 +222,9 @@
   function setStudentsData(students, sourceName) {
     allStudents = students;
     currentSourceName = sourceName;
+    absentStudentKeys.clear();
+    clearSwapSelection();
 
-    // Zjistíme unikátní skupiny
     const groupsSet = new Set();
     allStudents.forEach(s => {
       if (s.group !== '' && s.group !== null && s.group !== undefined) {
@@ -224,7 +244,7 @@
     showToast(`Úspěšně načteno ${allStudents.length} studentů`);
   }
 
-  // Naplnění výběrové roletky
+  // Naplnění roletky skupin
   function populateGroupSelect(groups) {
     groupSelect.innerHTML = '<option value="">-- Vyberte třídu / studijní skupinu --</option>';
 
@@ -237,8 +257,6 @@
     });
 
     groupSelect.disabled = false;
-
-    // Reset výběru a výsledků
     selectedGroup = null;
     groupInfo.style.display = 'none';
     studentRoster.style.display = 'none';
@@ -246,7 +264,7 @@
     resultsSection.style.display = 'none';
   }
 
-  // Změna vybrané skupiny
+  // Změna skupiny
   function onGroupSelectChange() {
     const val = groupSelect.value;
     if (!val) {
@@ -255,42 +273,55 @@
       groupInfo.style.display = 'none';
       studentRoster.style.display = 'none';
       resultsSection.style.display = 'none';
+      absentStudentKeys.clear();
+      clearSwapSelection();
       return;
     }
 
-    // Skupina může být uložena jako číslo nebo string
     const matchNum = Number(val);
     selectedGroup = isNaN(matchNum) ? val : matchNum;
 
-    const groupStudents = getStudentsForSelectedGroup();
-    const count = groupStudents.length;
+    // Při změně skupiny resetujeme nepřítomné a výměnu
+    absentStudentKeys.clear();
+    clearSwapSelection();
+    justSwappedIndices = [];
 
-    if (count < 2) {
-      showToast('Vybraná skupina má méně než 2 studenty.', true);
-      btnMix.disabled = true;
-      groupInfo.style.display = 'none';
-      return;
-    }
-
-    btnMix.disabled = false;
-    groupInfo.style.display = 'flex';
-
-    // Výpočet rozpisu
-    const isOdd = count % 2 !== 0;
-    const pairCount = isOdd ? (count - 3) / 2 : count / 2;
-
-    pillStudentCount.textContent = `Studentů: ${count}`;
-    if (isOdd) {
-      pillPairBreakdown.textContent = `Rozpis: ${pairCount} dvojic + 1 trojice`;
-      pillOddNotice.style.display = 'inline-block';
-    } else {
-      pillPairBreakdown.textContent = `Rozpis: ${pairCount} dvojic`;
-      pillOddNotice.style.display = 'none';
-    }
-
-    btnToggleStudentList.textContent = `Zobrazit seznam studentů (${count})`;
-    renderRoster(groupStudents);
+    // Aktualizujeme zobrazení docházky a informací o skupině
+    updateGroupInfoAndRoster();
     resultsSection.style.display = 'none';
+  }
+
+  // Klíč pro jednoznačnou identifikaci studenta
+  function getStudentKey(student) {
+    return `${student.firstName}__${student.lastName}__${student.group}`;
+  }
+
+  function isStudentAbsent(student) {
+    return absentStudentKeys.has(getStudentKey(student));
+  }
+
+  function toggleStudentAbsence(student) {
+    const key = getStudentKey(student);
+    if (absentStudentKeys.has(key)) {
+      absentStudentKeys.delete(key);
+      showToast(`${student.firstName} ${student.lastName} označen(a) jako přítomen/na.`);
+    } else {
+      absentStudentKeys.add(key);
+      showToast(`${student.firstName} ${student.lastName} odebrán(a) – chybí.`);
+    }
+
+    updateGroupInfoAndRoster();
+
+    // Pokud už byly výsledky zobrazeny, upozorníme uživatele na nutnost přemíchání
+    if (resultsSection.style.display !== 'none') {
+      showToast('Seznam přítomných studentů se změnil. Klikněte na Zamíchat do dvojic.', false);
+    }
+  }
+
+  function resetAllAbsences() {
+    absentStudentKeys.clear();
+    updateGroupInfoAndRoster();
+    showToast('Všichni studenti byli obnoveni jako přítomní.');
   }
 
   function getStudentsForSelectedGroup() {
@@ -298,33 +329,130 @@
     return allStudents.filter(s => s.group === selectedGroup);
   }
 
-  function getRosterCount() {
-    return getStudentsForSelectedGroup().length;
+  function getPresentStudentsForSelectedGroup() {
+    return getStudentsForSelectedGroup().filter(s => !isStudentAbsent(s));
+  }
+
+  function getPresentStudentsCount() {
+    return getPresentStudentsForSelectedGroup().length;
+  }
+
+  function updateRosterToggleLabel() {
+    const allCount = getStudentsForSelectedGroup().length;
+    const presentCount = getPresentStudentsCount();
+    const isHidden = studentRoster.style.display === 'none';
+    
+    if (isHidden) {
+      btnToggleStudentList.textContent = `Správa docházky / chybějící (${presentCount}/${allCount})`;
+    } else {
+      btnToggleStudentList.textContent = 'Skrýt správu docházky';
+    }
+  }
+
+  // Aktualizace informací o skupině a vykreslení docházky
+  function updateGroupInfoAndRoster() {
+    const allInGroup = getStudentsForSelectedGroup();
+    const totalCount = allInGroup.length;
+    const presentCount = getPresentStudentsCount();
+    const absentCount = totalCount - presentCount;
+
+    if (totalCount === 0) {
+      groupInfo.style.display = 'none';
+      return;
+    }
+
+    groupInfo.style.display = 'flex';
+    updateRosterToggleLabel();
+
+    // Resetovací tlačítko
+    if (btnResetAbsences) {
+      if (absentCount > 0) {
+        btnResetAbsences.style.display = 'inline-block';
+        btnResetAbsences.textContent = `Vrátit všechny chybějící (${absentCount})`;
+      } else {
+        btnResetAbsences.style.display = 'none';
+      }
+    }
+
+    // Informační odznáčky
+    if (absentCount > 0) {
+      pillStudentCount.textContent = `Přítomno: ${presentCount} (${absentCount} chybí)`;
+    } else {
+      pillStudentCount.textContent = `Studentů: ${totalCount}`;
+    }
+
+    // Výpočet rozpisu dle přítomných studentů
+    if (presentCount < 2) {
+      pillPairBreakdown.textContent = `Příliš málo studentů`;
+      pillOddNotice.style.display = 'none';
+      btnMix.disabled = true;
+    } else {
+      btnMix.disabled = false;
+      const isOdd = presentCount % 2 !== 0;
+      const pairCount = isOdd ? (presentCount - 3) / 2 : presentCount / 2;
+
+      if (isOdd) {
+        pillPairBreakdown.textContent = `Rozpis: ${pairCount} dvojic + 1 trojice`;
+        pillOddNotice.style.display = 'inline-block';
+      } else {
+        pillPairBreakdown.textContent = `Rozpis: ${pairCount} dvojic`;
+        pillOddNotice.style.display = 'none';
+      }
+    }
+
+    // Vykreslení seznamu studentů s tlačítky docházky
+    renderRoster(allInGroup);
   }
 
   function renderRoster(students) {
     rosterList.innerHTML = '';
-    // Setřídíme abecedně podle příjmení pro přehlednost
     const sorted = [...students].sort((a, b) => a.lastName.localeCompare(b.lastName, 'cs'));
-    sorted.forEach(s => {
+
+    sorted.forEach(student => {
+      const absent = isStudentAbsent(student);
       const li = document.createElement('li');
-      li.textContent = `${s.lastName} ${s.firstName}`;
+      li.className = `roster-item ${absent ? 'is-absent' : ''}`;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'roster-name';
+      nameSpan.textContent = `${student.lastName} ${student.firstName}`;
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'btn-absence-toggle';
+      toggleBtn.textContent = absent ? '↩️ Vrátit' : '❌ Chybí';
+      toggleBtn.title = absent ? 'Označit studenta jako přítomného' : 'Označit studenta jako chybějícího (vyřadit z míchání)';
+
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleStudentAbsence(student);
+      });
+
+      li.addEventListener('click', () => {
+        toggleStudentAbsence(student);
+      });
+
+      li.appendChild(nameSpan);
+      li.appendChild(toggleBtn);
       rosterList.appendChild(li);
     });
   }
 
-  // Náhodné promíchání (Fisher-Yates) a sestavení dvojic / trojice
+  // Náhodné míchání (Fisher-Yates) POUZE přítomných studentů
   function mixStudents() {
-    const students = getStudentsForSelectedGroup();
-    const n = students.length;
+    const presentStudents = getPresentStudentsForSelectedGroup();
+    const n = presentStudents.length;
 
     if (n < 2) {
-      showToast('Pro vytvoření dvojic je potřeba alespoň 2 studenti.', true);
+      showToast('Pro vytvoření dvojic musí být přítomni alespoň 2 studenti.', true);
       return;
     }
 
-    // Zamíchání kopií pole
-    const shuffled = [...students];
+    clearSwapSelection();
+    justSwappedIndices = [];
+
+    // Zamíchání
+    const shuffled = [...presentStudents];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -334,12 +462,10 @@
     if (n === 3) {
       groups.push([shuffled[0], shuffled[1], shuffled[2]]);
     } else if (n % 2 === 0) {
-      // Sudý počet: pouze dvojice
       for (let i = 0; i < n; i += 2) {
         groups.push([shuffled[i], shuffled[i + 1]]);
       }
     } else {
-      // Lichý počet: dvojice a na konci 1 trojice
       for (let i = 0; i < n - 3; i += 2) {
         groups.push([shuffled[i], shuffled[i + 1]]);
       }
@@ -350,17 +476,83 @@
     renderResults(groups, n);
   }
 
+  // Zrušení výběru pro výměnu
+  function clearSwapSelection() {
+    swapSelection = null;
+    if (swapStatusPill) swapStatusPill.style.display = 'none';
+  }
+
+  // Kliknutí na studenta ve výsledcích (ruční výměna)
+  function handleStudentClickForSwap(groupIdx, studentIdx) {
+    const student = currentMixedGroups[groupIdx][studentIdx];
+    const fullName = `${student.firstName} ${student.lastName}`;
+
+    // 1. Pokud zatím nikdo nebyl vybrán: vybereme tohoto studenta
+    if (!swapSelection) {
+      swapSelection = {
+        groupIdx: groupIdx,
+        studentIdx: studentIdx,
+        studentName: fullName
+      };
+      if (swapStatusPill) {
+        swapStatusText.textContent = `Vybrán: ${fullName} – klikněte na 2. studenta pro výměnu`;
+        swapStatusPill.style.display = 'inline-flex';
+      }
+      renderResults(currentMixedGroups, getPresentStudentsCount());
+      showToast(`Vybrán ${fullName}. Nyní klikněte na studenta, s kterým ho chcete vyměnit.`);
+      return;
+    }
+
+    // 2. Pokud uživatel klikl na stejného studenta: zrušíme výběr
+    if (swapSelection.groupIdx === groupIdx && swapSelection.studentIdx === studentIdx) {
+      clearSwapSelection();
+      renderResults(currentMixedGroups, getPresentStudentsCount());
+      showToast('Výběr studenta zrušen.');
+      return;
+    }
+
+    // 3. Uživatel klikl na jiného studenta: PROVÉST VÝMĚNU!
+    const g1 = swapSelection.groupIdx;
+    const s1 = swapSelection.studentIdx;
+    const name1 = swapSelection.studentName;
+    const name2 = fullName;
+
+    // Prohození prvků v poli
+    const temp = currentMixedGroups[g1][s1];
+    currentMixedGroups[g1][s1] = currentMixedGroups[groupIdx][studentIdx];
+    currentMixedGroups[groupIdx][studentIdx] = temp;
+
+    // Uložíme indexy pro vizuální zvýraznění (animaci)
+    justSwappedIndices = [
+      { g: g1, s: s1 },
+      { g: groupIdx, s: studentIdx }
+    ];
+
+    clearSwapSelection();
+    renderResults(currentMixedGroups, getPresentStudentsCount());
+    showToast(`Vyměněno: ${name1} ⇄ ${name2}!`);
+  }
+
   // Zobrazení výsledků
   function renderResults(groups, totalStudents) {
     pairsGrid.innerHTML = '';
     const isOdd = totalStudents % 2 !== 0;
     const pairCount = isOdd ? groups.length - 1 : groups.length;
 
-    resultsSubtitle.textContent = isOdd 
-      ? `Skupina ${selectedGroup}: celkem ${totalStudents} studentů rozděleno do ${pairCount} dvojic a 1 trojice`
-      : `Skupina ${selectedGroup}: celkem ${totalStudents} studentů rozděleno do ${pairCount} dvojic`;
+    const allInGroupCount = getStudentsForSelectedGroup().length;
+    const absentCount = allInGroupCount - totalStudents;
 
-    groups.forEach((group, idx) => {
+    let subtitleText = isOdd 
+      ? `Skupina ${selectedGroup}: ${totalStudents} přítomných studentů rozděleno do ${pairCount} dvojic a 1 trojice`
+      : `Skupina ${selectedGroup}: ${totalStudents} přítomných studentů rozděleno do ${pairCount} dvojic`;
+    
+    if (absentCount > 0) {
+      subtitleText += ` (${absentCount} ${absentCount === 1 ? 'student chybí' : 'studentů chybí'})`;
+    }
+
+    resultsSubtitle.textContent = subtitleText;
+
+    groups.forEach((group, gIdx) => {
       const isTriplet = group.length === 3;
       const card = document.createElement('div');
       card.className = `pair-card ${isTriplet ? 'triplet' : ''}`;
@@ -370,17 +562,29 @@
       
       const badge = document.createElement('span');
       badge.className = 'pair-badge';
-      badge.textContent = isTriplet ? '⭐ Trojice (lichý počet)' : `Dvojice #${idx + 1}`;
+      badge.textContent = isTriplet ? '⭐ Trojice (lichý počet)' : `Dvojice #${gIdx + 1}`;
       header.appendChild(badge);
       card.appendChild(header);
 
-      group.forEach(student => {
+      group.forEach((student, sIdx) => {
         const item = document.createElement('div');
         item.className = 'student-list-item';
+        item.title = 'Kliknutím vyberete tohoto studenta pro výměnu';
+
+        // Kontrola, zda je student vybrán k výměně
+        const isSelected = swapSelection && swapSelection.groupIdx === gIdx && swapSelection.studentIdx === sIdx;
+        if (isSelected) {
+          item.classList.add('swap-selected');
+        }
+
+        // Kontrola, zda byl student právě prohozen (animace)
+        const wasJustSwapped = justSwappedIndices.some(idx => idx.g === gIdx && idx.s === sIdx);
+        if (wasJustSwapped) {
+          item.classList.add('swap-just-swapped');
+        }
 
         const avatar = document.createElement('div');
         avatar.className = 'student-avatar';
-        // Iniciály
         const ini1 = (student.firstName || '').charAt(0).toUpperCase();
         const ini2 = (student.lastName || '').charAt(0).toUpperCase();
         avatar.textContent = `${ini1}${ini2}`;
@@ -390,6 +594,18 @@
 
         item.appendChild(avatar);
         item.appendChild(nameSpan);
+
+        if (isSelected) {
+          const swapBadge = document.createElement('span');
+          swapBadge.className = 'swap-student-badge';
+          swapBadge.textContent = 'Vybrán k výměně';
+          item.appendChild(swapBadge);
+        }
+
+        item.addEventListener('click', () => {
+          handleStudentClickForSwap(gIdx, sIdx);
+        });
+
         card.appendChild(item);
       });
 
@@ -399,10 +615,8 @@
     // Aktualizace náhledu TXT souboru
     updateTxtPreview(groups);
 
-    // Zobrazit sekci výsledků a hladce odrolovat
+    // Zobrazit sekci výsledků
     resultsSection.style.display = 'block';
-    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    showToast('Studenti byli náhodně namícháni!');
   }
 
   // Vygenerování textu pro TXT: jeden řádek = jedna dvojice/trojice
@@ -454,7 +668,6 @@
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(textContent);
       } else {
-        // Fallback pro starší prohlížeče
         const textarea = document.createElement('textarea');
         textarea.value = textContent;
         textarea.style.position = 'fixed';
