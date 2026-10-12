@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Míchání studentských dvojic | VND</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Podpora pro čtení Excel (.xlsx) souborů -->
+  <script src="xlsx.full.min.js"></script>
+  <!-- Výchozí záložní data pro případ přímého otevření v prohlížeči přes file:// -->
+  <script src="students_data.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="header-icon">👥</div>
+      <div>
+        <h1>Míchání studentských dvojic</h1>
+        <p class="subtitle">Náhodný generátor dvojic (a trojice při lichém počtu) pro studijní skupiny</p>
+      </div>
+    </header>
+
+    <main class="app-content">
+      <!-- 1. Zdroj dat a nahrávání -->
+      <section class="card source-section">
+        <div class="card-header">
+          <span class="step-badge">1</span>
+          <h2>Zdroj dat studentů</h2>
+        </div>
+        
+        <div class="source-status-bar" id="sourceStatusBar">
+          <div class="status-indicator loading" id="statusDot"></div>
+          <div class="status-text" id="statusText">Načítám data studentů...</div>
+        </div>
+
+        <div class="source-actions">
+          <button type="button" class="btn btn-secondary" id="btnReloadDefault">
+            🔄 Načíst výchozí (VND26_studenti.xlsx)
+          </button>
+          
+          <label class="btn btn-outline file-upload-label">
+            📁 Nahrát jiný soubor (.xlsx)
+            <input type="file" id="fileInput" accept=".xlsx, .xls" hidden>
+          </label>
+        </div>
+
+        <!-- Drag & Drop zóna -->
+        <div class="drop-zone" id="dropZone">
+          <span class="drop-icon">📤</span>
+          <p>Přetáhněte sem jiný <strong>.xlsx</strong> soubor studentů nebo klikněte na tlačítko výše</p>
+          <small class="text-muted">Očekávaná struktura: 1. sloupec Jméno, 2. sloupec Příjmení, 3. sloupec Skupina</small>
+        </div>
+      </section>
+
+      <!-- 2. Výběr skupiny -->
+      <section class="card group-section">
+        <div class="card-header">
+          <span class="step-badge">2</span>
+          <h2>Výběr studijní skupiny</h2>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-grow">
+            <label for="groupSelect" class="form-label">Studijní skupina (třída):</label>
+            <select id="groupSelect" class="form-select" disabled>
+              <option value="">Nejprve načtěte data...</option>
+            </select>
+          </div>
+          
+          <div class="action-btn-container">
+            <button type="button" class="btn btn-primary btn-large" id="btnMix" disabled>
+              🎲 Zamíchat do dvojic
+            </button>
+          </div>
+        </div>
+
+        <div class="group-info" id="groupInfo" style="display: none;">
+          <div class="info-pill" id="pillStudentCount">Studentů: 0</div>
+          <div class="info-pill" id="pillPairBreakdown">Rozpis: 0 dvojic</div>
+          <div class="info-pill highlight" id="pillOddNotice" style="display: none;">⚠️ Lichý počet – vznikne 1 trojice</div>
+          <button type="button" class="btn-text-toggle" id="btnToggleStudentList">Zobrazit seznam studentů (0)</button>
+        </div>
+
+        <!-- Seznam studentů ve vybrané skupině (sbalitelný) -->
+        <div class="student-roster" id="studentRoster" style="display: none;">
+          <ul id="rosterList" class="roster-list"></ul>
+        </div>
+      </section>
+
+      <!-- 3. Výsledky míchání -->
+      <section class="card results-section" id="resultsSection" style="display: none;">
+        <div class="results-header-bar">
+          <div>
+            <div class="card-header" style="margin-bottom: 0;">
+              <span class="step-badge">3</span>
+              <h2>Namíchané dvojice a trojice</h2>
+            </div>
+            <p class="results-subtitle" id="resultsSubtitle"></p>
+          </div>
+
+          <div class="results-actions">
+            <button type="button" class="btn btn-secondary" id="btnRemix">
+              🎲 Zamíchat znovu
+            </button>
+            <button type="button" class="btn btn-outline" id="btnCopyText">
+              📋 Kopírovat text
+            </button>
+            <button type="button" class="btn btn-success" id="btnDownloadTxt">
+              💾 Uložit do TXT
+            </button>
+          </div>
+        </div>
+
+        <!-- Karty s dvojicemi -->
+        <div class="pairs-grid" id="pairsGrid"></div>
+
+        <!-- Náhled TXT výstupu -->
+        <div class="txt-preview-container">
+          <div class="txt-preview-header">
+            <span>Náhled TXT souboru (jeden řádek = jedna dvojice/trojice):</span>
+            <span class="badge-tag" id="previewLineCount">0 řádků</span>
+          </div>
+          <pre class="txt-preview-box" id="txtPreviewBox"></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Aplikace pro náhodné míchání studentů VND • Připraveno pro GitHub Pages</p>
+    </footer>
+  </div>
+
+  <!-- Toast notifikace -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
